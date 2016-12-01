@@ -3,7 +3,7 @@ EXEC = mandcu
 OBJS =
 H_FILE = timer.h
 MATHFLAG = -lm
-FLAGS = -O3 -I/usr/local/cuda/lib64
+FLAGS = -O3 -I/usr/local/cuda/lib64 -Wno-deprecated-gpu-targets
 SEQFLAGS = -O3
 
 all: $(EXEC)
