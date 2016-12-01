@@ -1,10 +1,9 @@
 CC = nvcc
 EXEC = mandcu
 OBJS =
-H_FILE = timer.h
 MATHFLAG = -lm
 FLAGS = -O3 -I/usr/local/cuda/lib64 -Wno-deprecated-gpu-targets
-SEQFLAGS = -O3
+#FLAGS = -g -G -keep -I/usr/local/cuda/lib64 -Wno-deprecated-gpu-targets
 
 all: $(EXEC)
 

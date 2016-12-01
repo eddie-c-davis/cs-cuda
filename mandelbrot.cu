@@ -30,11 +30,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <sys/time.h>
+#include <limits.h>
 
 // CUDA includes...
 #include <cuda_runtime.h>
-#include <device_launch_parameters.h>
+//#include <device_launch_parameters.h>
 
 #define   RMIN       0.3129928802767
 #define   RMAX       0.31299305009252
@@ -44,31 +44,19 @@
 #define   RADIUS_SQ  4.0     /* 2^2                              */
 #define   WIDTH      2400    /* # of pixels wide                 */
 #define   HEIGHT     2400    /* # of pixels high                 */
-#define   MAX_COLOR  255
+#define   MAX_COLOR  UCHAR_MAX
 #define   OUT_FILE   "Mandelbrot.pgm"
+#define   BLOCK_SIZE 32
+#define   DEF_ITER   1000
+#define   DEBUG      0
 
-double timer() {
-    struct timeval time;
-    double tval = 0.0;
+void writeOutput(const char *fileName, char *data, int width, int height) {
+    int i, j;      /* index variables */
+    int max = -1;  /* for pgm file output */
+    int size = width * height;
 
-//#ifdef _OPENMP
-//    tval = omp_get_wtime();
-//#else
-    gettimeofday(&time, NULL);
-    tval = ((double) time.tv_sec) + ((double) time.tv_usec) / 1E6;
-//#endif
-
-    return tval;
-}
-
-
-void writeOutput(char *fileName, int * data, int width, int height) {
-    int i, j;    /* index variables */
-    int max=-1;  /* for pgm file output */
-
-    /* PGM file format requires the largest */
-    /* pixel value.  Calculate this.        */
-    for(i=0; i<width*height; ++i) {
+    /* PGM file format requires the largest pixel value, calculate this */
+    for (i = 0; i < size; ++i) {
         if (data[i] > max) {
             max = data[i];
         }
@@ -83,10 +71,11 @@ void writeOutput(char *fileName, int * data, int width, int height) {
     fprintf(fout, "%d\n",max);
 
     /* throw out the data */
-    for(i=0; i<height; ++i) {
-        for(j=0; j<width; ++j) {
-            fprintf(fout, "%d\t", data[i*width+j]);
+    for (i = 0; i < height; ++i) {
+        for (j = 0; j < width; ++j) {
+            fprintf(fout, "%d\t", data[i * width + j]);
         }
+
         fprintf(fout,"\n");
     }
 
@@ -96,14 +85,14 @@ void writeOutput(char *fileName, int * data, int width, int height) {
 }
 
 #define cudaAssert(ans) { _cudaAssert((ans), __FILE__, __LINE__); }
-inline void _cudaAssert(cudaError_t code, char *file, int line) {
+inline void _cudaAssert(cudaError_t code, const char *file, int line) {
     if (code != cudaSuccess)  {
         fprintf(stderr, "cudaAssert: %s %s %d\n", cudaGetErrorString(code), file, line);
         exit(code);
     }
 }
 
-void cudaPrintDeviceProperties(FILE *file, cudaDeviceProp *prop, int i) {
+void cudaPrintDevices(FILE *file, cudaDeviceProp *prop, int i) {
     fprintf(file, "Device Number: %d\n", i);
     fprintf(file, "  Device name: %s\n", prop->name);
     fprintf(file, "  Memory Clock Rate (KHz): %d\n", prop->memoryClockRate);
@@ -144,15 +133,12 @@ void cudaPrintDeviceProperties(FILE *file, cudaDeviceProp *prop, int i) {
 
 }
 
-__global__ void mand(int* output, int maxIter, double realRange, double imagRange) {
-    int col = blockIdx.x * blockDim.x + threadIdx.x;  // Image col (X coord)
+__global__ void mand(char* output, int maxIter, double realRange, double imagRange) {
+    int col = blockDim.x * blockIdx.x + threadIdx.x;  // Image col (X coord)
     int row = blockDim.y * blockIdx.y + threadIdx.y;  // Image row (Y coord)
 
     if (col < WIDTH && row < HEIGHT) {
         int idx = row * WIDTH + col;
-
-        // i <=> row
-        // j <=> col
 
         double cReal = RMIN + row * realRange;
         double cImag = IMIN + col * imagRange;
@@ -164,11 +150,8 @@ __global__ void mand(int* output, int maxIter, double realRange, double imagRang
         double zCurr;
         double zMag;
 
-//      for (i = 0; i < HEIGHT; ++i) {
-//      for (j = 0; j < WIDTH; ++j) {
-
-        int k = 0;
-        for (; k < maxIter; ++k) {
+        int iter = 0;
+        for (; iter < maxIter; ++iter) {
             zCurr = zReal;
 
             zReal2 = zReal * zReal;
@@ -183,101 +166,119 @@ __global__ void mand(int* output, int maxIter, double realRange, double imagRang
             }
         }
 
-        output[idx] = (int) floor(((double) (MAX_COLOR * k)) / (double) maxIter);
+        output[idx] = (char) floor(((double) (MAX_COLOR * iter)) / (double) maxIter);
     }
 }
 
 int main(int argc, char ** argv) {
-    if ( argc < 2 ) {
-        printf("Usage : %s [MAX ITERATION]\n", argv[0]);
-        exit(0);
-    }
-
-    int maxIter = atoi(argv[1]);    /* first command line argument... */
-
     int nDevices = 0;
     cudaDeviceProp prop;
 
-    int *hostOutput = NULL;
-    int *devOutput = NULL;
+    char *hostOutput = NULL;
+    char *devOutput = NULL;
 
     float time; 	/*timer*/
 
-    cudaAssert(cudaGetDeviceCount(&nDevices));
-    printf("nDevices = %d\n", nDevices);
-    for (int i = 0; i < nDevices; i++) {
-        cudaAssert(cudaGetDeviceProperties(&prop, i));
-        cudaPrintDeviceProperties(stderr, &prop, i);
+    int maxIter = DEF_ITER;
+    if (argc > 1) {
+        maxIter = atoi(argv[1]);    /* first command line argument... */
     }
 
+    if (maxIter < 1) {
+        printf("Usage : %s [MAX ITERATION]\n", argv[0]);
+        return 0;
+    }
+
+    printf("Running Mandelbrot-CUDA with %d iterations...\n", maxIter);
+
+    cudaAssert(cudaGetDeviceCount(&nDevices));
+
+    if (nDevices < 1) {
+        printf("ERROR: No valid CUDA devices on this machine!\n");
+        return -1;
+    }
+
+    if (DEBUG) {
+        fprintf(stderr, "nDevices = %d\n", nDevices);
+        for (int i = 0; i < nDevices; i++) {
+            cudaAssert(cudaGetDeviceProperties(&prop, i));
+            cudaPrintDevices(stderr, &prop, i);
+        }
+    }
+
+    // Get data size...
     int dataSize = WIDTH * HEIGHT;
-    fprintf(stderr, "dataSize = %d\n", dataSize);
+    if (DEBUG) fprintf(stderr, "dataSize = %d\n", dataSize);
+
+    /* Allocate memory on host to store output values for pixels */
+    hostOutput = (char *) calloc(dataSize, sizeof(char));
+    if (hostOutput == NULL) {
+        perror("hostOutput");
+        return -1;
+    }
 
     // Set block size...
-    int blockWidth = 32;
+    int blockWidth = BLOCK_SIZE;
     int blockHeight = blockWidth;
     dim3 blockSize(blockWidth, blockHeight);
-    fprintf(stderr, "blockSize = (%d,%d)\n", blockSize.x, blockSize.y);
+    if (DEBUG) fprintf(stderr, "blockSize = (%d,%d)\n", blockSize.x, blockSize.y);
 
     // Set grid size...
     int gridWidth = WIDTH / blockSize.x;
     int gridHeight = HEIGHT / blockSize.y;
     dim3 gridSize(gridWidth, gridHeight);
-    fprintf(stderr, "gridSize = (%d,%d)\n", gridSize.x, gridSize.y);
+    if (DEBUG) fprintf(stderr, "gridSize = (%d,%d)\n", gridSize.x, gridSize.y);
 
     // Create event timers...
     cudaEvent_t start, stop;
     cudaAssert(cudaEventCreate(&start));
     cudaAssert(cudaEventCreate(&stop));
 
-    /* Allocate memory on host to store output values for pixels */
-    hostOutput = (int *) calloc(dataSize, sizeof(int));
-    if (hostOutput == NULL) {
-        perror("hostOutput");
-        return -1;
-    }
-
     // Start timer...
     cudaEventRecord(start);
 
     /* Allocate memory on device... */
-    fprintf(stderr, "cudaMalloc...\n");
-    cudaAssert(cudaMalloc(&devOutput, dataSize * sizeof(int)));
+    if (DEBUG) fprintf(stderr, "cudaMalloc...\n");
+    cudaAssert(cudaMalloc(&devOutput, dataSize * sizeof(char)));
 
     double realRange = (RMAX - RMIN) / (double) (WIDTH - 1);
     double imagRange = (IMAX - IMIN) / (double) (HEIGHT - 1);
 
     // Invoke the kernel...
-    fprintf(stderr, "kernel: mand(devOutput[%d], maxIter=%d, realRange=%lf, imagRange=%lf)...\n", dataSize, maxIter, realRange, imagRange);
+    if (DEBUG) {
+        fprintf(stderr, "kernel: mand(devOutput[%d], maxIter=%d, realRange=%lf, imagRange=%lf)...\n",
+                dataSize, maxIter, realRange, imagRange);
+    }
+
     mand<<<gridSize, blockSize>>>(devOutput, maxIter, realRange, imagRange);
 
     // Check last error...
-    fprintf(stderr, "cudaPeekAtLastError...\n");
+    if (DEBUG) fprintf(stderr, "cudaPeekAtLastError...\n");
     cudaAssert(cudaPeekAtLastError());
 
     // Sync the device...
-    //fprintf(stderr, "cudaDeviceSynchronize...\n");
+    //if (DEBUG) fprintf(stderr, "cudaDeviceSynchronize...\n");
     //cudaAssert(cudaDeviceSynchronize());
 
     // Copy data back to host
-    fprintf(stderr, "cudaMemcpy...\n");
+    if (DEBUG) fprintf(stderr, "cudaMemcpy...\n");
     cudaAssert(cudaMemcpy(hostOutput, devOutput, dataSize, cudaMemcpyDeviceToHost));
 
     // Free data on device...
-    fprintf(stderr, "cudaFree...\n");
+    if (DEBUG) fprintf(stderr, "cudaFree...\n");
     cudaAssert(cudaFree(devOutput));
 
     // Stop timer...
     cudaAssert(cudaEventRecord(stop));
 
     // Get elapsed time...
-    fprintf(stderr, "cudaEventSynchronize...\n");
+    if (DEBUG) fprintf(stderr, "cudaEventSynchronize...\n");
     cudaAssert(cudaEventSynchronize(stop));
-    fprintf(stderr, "cudaEventElapsedTime...\n");
+    if (DEBUG) fprintf(stderr, "cudaEventElapsedTime...\n");
     cudaAssert(cudaEventElapsedTime(&time, start, stop));
 
     // Write the output...
-    fprintf(stderr, "writeOutput...\n");
+    if (DEBUG) fprintf(stderr, "writeOutput...\n");
     writeOutput(OUT_FILE, hostOutput, WIDTH, HEIGHT);
 
     // Free host data...
