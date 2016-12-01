@@ -1,55 +1,37 @@
-
-/************************************\
-| filename: escape.c
-|
-| description: sequential version
-| of code that outputs a .PGM file of
-| a Mandelbrot fractal.
-|
-| notes: the number of pixels, 2400x2400
-| was chosen so that it would take a fair
-| amount of time to compute the image so
-| that speedup may be observed on in a parallel
-| implementation.  it might be advisable
-| to change the #defines for the purposes
-| of developing a parallel version of the
-| code.
-|
-| hint: the file output is a .PGM file which
-| is viewable with the linux utility gimp.
-| The 'convert' utility can convert
-| from .pgm to .gif, which will save lots of disk
-| space.
-|
-| authors: Bryan Schlief, Daegon Kim, Wim Bohm
-|
-\***********************************/
-
+/**
+ * @author Eddie Davis (eddiedavis)
+ * @file mandelbrot.cu
+ * @brief CS530 PA4: Mandelbrot-CUDA Impementation
+ */
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 #include <limits.h>
-
-// CUDA includes...
 #include <cuda_runtime.h>
-//#include <device_launch_parameters.h>
 
 #define   RMIN       0.3129928802767
 #define   RMAX       0.31299305009252
 #define   IMIN       0.0345483210604
 #define   IMAX       0.0345485012278
 
-#define   RADIUS_SQ  4.0     /* 2^2                              */
-#define   WIDTH      2400    /* # of pixels wide                 */
-#define   HEIGHT     2400    /* # of pixels high                 */
-#define   MAX_COLOR  UCHAR_MAX
+#define   RADIUS_SQ  4.0                /* 2^2  */
+#define   WIDTH      2400               /* Image width in pixels */
+#define   HEIGHT     2400               /* Image height in pixels */
+#define   MAX_COLOR  UCHAR_MAX          /* 255 */
+#define   BLOCK_SIZE 32                 /* BLOCK_SIZE = GCD(WIDTH, THREADS_PER_BLOCK) = GCD(2400, 1024) */
 #define   OUT_FILE   "Mandelbrot.pgm"
-#define   BLOCK_SIZE 32
 #define   DEF_ITER   1000
 #define   DEBUG      0
 
+/**
+ * writeOutput
+ * @param fileName Filename to write PGM data.
+ * @param data Output array data (Mandelbrot pixels)
+ * @param width Image width
+ * @param height Image height
+ */
 void writeOutput(const char *fileName, char *data, int width, int height) {
     int i, j;      /* index variables */
     int max = -1;  /* for pgm file output */
@@ -84,6 +66,12 @@ void writeOutput(const char *fileName, char *data, int width, int height) {
     fclose(fout);
 }
 
+/**
+ * cudaAssert
+ * @param code cudaError_t error code struct.
+ * @param file Name of file in which error occurred.
+ * @param line Line number on which error occurred.
+ */
 #define cudaAssert(ans) { _cudaAssert((ans), __FILE__, __LINE__); }
 inline void _cudaAssert(cudaError_t code, const char *file, int line) {
     if (code != cudaSuccess)  {
@@ -92,8 +80,14 @@ inline void _cudaAssert(cudaError_t code, const char *file, int line) {
     }
 }
 
-void cudaPrintDevices(FILE *file, cudaDeviceProp *prop, int i) {
-    fprintf(file, "Device Number: %d\n", i);
+/**
+ * cudaPrintDevices
+ * @param file File pointer to write device properties.
+ * @param prop cudaDeviceProp structure pointer.
+ * @param dnum CUDA device number.
+ */
+void cudaPrintDevices(FILE *file, cudaDeviceProp *prop, int dnum) {
+    fprintf(file, "Device Number: %d\n", dnum);
     fprintf(file, "  Device name: %s\n", prop->name);
     fprintf(file, "  Memory Clock Rate (KHz): %d\n", prop->memoryClockRate);
     fprintf(file, "  Memory Bus Width (bits): %d\n", prop->memoryBusWidth);
@@ -133,6 +127,13 @@ void cudaPrintDevices(FILE *file, cudaDeviceProp *prop, int i) {
 
 }
 
+/**
+ * mand (CUDA kernel function)
+ * @param output Output array to receive computed Mandelbrot pixels.
+ * @param maxIter Max iterations to test for escape values.
+ * @param realRange Range of real component.
+ * @param imagRange Range of imaginary component.
+ */
 __global__ void mand(char* output, int maxIter, double realRange, double imagRange) {
     int col = blockDim.x * blockIdx.x + threadIdx.x;  // Image col (X coord)
     int row = blockDim.y * blockIdx.y + threadIdx.y;  // Image row (Y coord)
@@ -170,6 +171,12 @@ __global__ void mand(char* output, int maxIter, double realRange, double imagRan
     }
 }
 
+/**
+ * main
+ * @param argc Argument count.
+ * @param argv Argument values.
+ * @return
+ */
 int main(int argc, char ** argv) {
     int nDevices = 0;
     cudaDeviceProp prop;
