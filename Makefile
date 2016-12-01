@@ -2,8 +2,8 @@ CC = nvcc
 EXEC = mandcu
 OBJS =
 MATHFLAG = -lm
-FLAGS = -O3 -I/usr/local/cuda/lib64 -Wno-deprecated-gpu-targets
-#FLAGS = -g -G -keep -I/usr/local/cuda/lib64 -Wno-deprecated-gpu-targets
+FLAGS = -O3 -I/usr/local/cuda/include -Wno-deprecated-gpu-targets
+#FLAGS = -g -G -I/usr/local/cuda/include -Wno-deprecated-gpu-targets
 
 all: $(EXEC)
 

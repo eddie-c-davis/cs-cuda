@@ -181,8 +181,8 @@ int main(int argc, char ** argv) {
     int nDevices = 0;
     cudaDeviceProp prop;
 
-    char *hostOutput = NULL;
-    char *devOutput = NULL;
+    char *output = NULL;
+    char *d_output = NULL;
 
     float time; 	/*timer*/
 
@@ -218,9 +218,9 @@ int main(int argc, char ** argv) {
     if (DEBUG) fprintf(stderr, "dataSize = %d\n", dataSize);
 
     /* Allocate memory on host to store output values for pixels */
-    hostOutput = (char *) calloc(dataSize, sizeof(char));
-    if (hostOutput == NULL) {
-        perror("hostOutput");
+    output = (char *) calloc(dataSize, sizeof(char));
+    if (output == NULL) {
+        perror("output");
         return -1;
     }
 
@@ -244,36 +244,40 @@ int main(int argc, char ** argv) {
     // Start timer...
     cudaEventRecord(start);
 
-    /* Allocate memory on device... */
+    // Allocate memory on device...
     if (DEBUG) fprintf(stderr, "cudaMalloc...\n");
-    cudaAssert(cudaMalloc(&devOutput, dataSize * sizeof(char)));
+    cudaAssert(cudaMalloc(&d_output, dataSize * sizeof(char)));
 
     double realRange = (RMAX - RMIN) / (double) (WIDTH - 1);
     double imagRange = (IMAX - IMIN) / (double) (HEIGHT - 1);
 
     // Invoke the kernel...
     if (DEBUG) {
-        fprintf(stderr, "kernel: mand(devOutput[%d], maxIter=%d, realRange=%lf, imagRange=%lf)...\n",
+        fprintf(stderr, "kernel: mand(d_output[%d], maxIter=%d, realRange=%lf, imagRange=%lf)...\n",
                 dataSize, maxIter, realRange, imagRange);
     }
 
-    mand<<<gridSize, blockSize>>>(devOutput, maxIter, realRange, imagRange);
+    mand<<<gridSize, blockSize>>>(d_output, maxIter, realRange, imagRange);
 
     // Check last error...
-    if (DEBUG) fprintf(stderr, "cudaPeekAtLastError...\n");
-    cudaAssert(cudaPeekAtLastError());
+    // cudaMemcpy peeks at last error so need for peek.
+    //if (DEBUG) fprintf(stderr, "cudaPeekAtLastError...\n");
+    //cudaAssert(cudaPeekAtLastError());
 
     // Sync the device...
+    // cudaMemcpy is an implicit barrier so need need for sync.
     //if (DEBUG) fprintf(stderr, "cudaDeviceSynchronize...\n");
     //cudaAssert(cudaDeviceSynchronize());
 
-    // Copy data back to host
+    // cudaMemcpy is an implicit barrier so need need for sync.
+
+    // Copy data back to host...
     if (DEBUG) fprintf(stderr, "cudaMemcpy...\n");
-    cudaAssert(cudaMemcpy(hostOutput, devOutput, dataSize, cudaMemcpyDeviceToHost));
+    cudaAssert(cudaMemcpy(output, d_output, dataSize, cudaMemcpyDeviceToHost));
 
     // Free data on device...
     if (DEBUG) fprintf(stderr, "cudaFree...\n");
-    cudaAssert(cudaFree(devOutput));
+    cudaAssert(cudaFree(d_output));
 
     // Stop timer...
     cudaAssert(cudaEventRecord(stop));
@@ -286,13 +290,14 @@ int main(int argc, char ** argv) {
 
     // Write the output...
     if (DEBUG) fprintf(stderr, "writeOutput...\n");
-    writeOutput(OUT_FILE, hostOutput, WIDTH, HEIGHT);
+    writeOutput(OUT_FILE, output, WIDTH, HEIGHT);
 
     // Free host data...
-    free(hostOutput);
+    free(output);
 
     // Report timing...
     printf("Elapsed time: %lf sec\n", time * 1E-3);
 
     return 0;
 }
+
