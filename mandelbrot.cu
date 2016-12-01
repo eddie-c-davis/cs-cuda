@@ -292,7 +292,7 @@ int main(int argc, char ** argv) {
     free(hostOutput);
 
     // Report timing...
-    printf("Elapsed time: %lf ms\n", time);
+    printf("Elapsed time: %lf sec\n", time * 1E-3);
 
     return 0;
 }
