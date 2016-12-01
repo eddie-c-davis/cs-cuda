@@ -36,10 +36,16 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
+#define   RMIN       0.3129928802767
+#define   RMAX       0.31299305009252
+#define   IMIN       0.0345483210604
+#define   IMAX       0.0345485012278
+
 #define   RADIUS_SQ  4.0     /* 2^2                              */
-#define   WIDTH    2400    /* # of pixels wide                 */
-#define   HEIGHT    2400    /* # of pixels high                 */
+#define   WIDTH      2400    /* # of pixels wide                 */
+#define   HEIGHT     2400    /* # of pixels high                 */
 #define   MAX_COLOR  255
+#define   OUT_FILE   "Mandelbrot.pgm"
 
 double timer() {
     struct timeval time;
@@ -138,56 +144,50 @@ void cudaPrintDeviceProperties(FILE *file, cudaDeviceProp *prop, int i) {
 
 }
 
-__global__ void mand(int* buffer, int maxIter) {
+__global__ void mand(int* output, int maxIter, double realRange, double imagRange) {
     int col = blockIdx.x * blockDim.x + threadIdx.x;  // Image col (X coord)
     int row = blockDim.y * blockIdx.y + threadIdx.y;  // Image row (Y coord)
 
     if (col < WIDTH && row < HEIGHT) {
         int idx = row * WIDTH + col;
 
-        // Do some math...
-        float x0 = ((float) col / WIDTH) * 3.5f - 2.5f;
-        float y0 = ((float) row / HEIGHT) * 3.5f - 1.75f;
+        // i <=> row
+        // j <=> col
 
-        float x = 0.0f;
-        float y = 0.0f;
-        int iter = 0;
+        double cReal = RMIN + row * realRange;
+        double cImag = IMIN + col * imagRange;
 
-        float xtemp;
-        for (int iter = 0; (x * x + y * y <= 4.0f) && (iter < maxIter); iter++) {
-            xtemp = x * x - y * y + x0;
-            y = 2.0f * x * y + y0;
-            x = xtemp;
+        double zReal = 0.0;
+        double zImag = 0.0;
+        double zReal2 = zReal;
+        double zImag2 = zImag;
+        double zCurr;
+        double zMag;
+
+//      for (i = 0; i < HEIGHT; ++i) {
+//      for (j = 0; j < WIDTH; ++j) {
+
+        int k = 0;
+        for (; k < maxIter; ++k) {
+            zCurr = zReal;
+
+            zReal2 = zReal * zReal;
+            zImag2 = zImag * zImag;
+
+            zReal = zReal2 - zImag2 + cReal;
+            zImag = (2.0 * zCurr * zImag) + cImag;
+
+            zMag = zReal2 + zImag2;
+            if (zMag > RADIUS_SQ) {
+                break;
+            }
         }
 
-        int color = iter * 5;
-        if (color > MAX_COLOR) {
-            color = 0;
-        }
-
-        buffer[idx] = color;
+        output[idx] = (int) floor(((double) (MAX_COLOR * k)) / (double) maxIter);
     }
 }
 
 int main(int argc, char ** argv) {
-    int i,j;                            /* index variables */
-    int counter;                       /* measures the "speed" at which a particular point diverges.    */
-    int nDevices = 0;
-    int tid = 0, tmax = 1;
-
-    float time; 	/*timer*/
-
-    double real_max, real_min, imag_max, imag_min;          /* varibles that define the 'c' plane; */
-
-    double real_range, imag_range;      /* distance per pixel */
-
-    double c_real, c_imag,              /* c and z variables  */
-          z_real, z_imag, z_magnitude; /* for inner for loop */
-
-    double z_current_real;              /* temporary variable that holds the value */
-                                       /* of z_real for the calculation of z_imag  */
-    cudaDeviceProp prop;
-
     if ( argc < 2 ) {
         printf("Usage : %s [MAX ITERATION]\n", argv[0]);
         exit(0);
@@ -195,16 +195,19 @@ int main(int argc, char ** argv) {
 
     int maxIter = atoi(argv[1]);    /* first command line argument... */
 
-    char* outFileName = "Mandelbrot.pgm";  /* the sequential output filename */
+    int nDevices = 0;
+    cudaDeviceProp prop;
 
     int *hostOutput = NULL;
     int *devOutput = NULL;
 
+    float time; 	/*timer*/
+
     cudaAssert(cudaGetDeviceCount(&nDevices));
     printf("nDevices = %d\n", nDevices);
-    for (i = 0; i < nDevices; i++) {
+    for (int i = 0; i < nDevices; i++) {
         cudaAssert(cudaGetDeviceProperties(&prop, i));
-        cudaPrintDeviceProperties(stdout, &prop, i);
+        cudaPrintDeviceProperties(stderr, &prop, i);
     }
 
     int dataSize = WIDTH * HEIGHT;
@@ -241,17 +244,20 @@ int main(int argc, char ** argv) {
     fprintf(stderr, "cudaMalloc...\n");
     cudaAssert(cudaMalloc(&devOutput, dataSize * sizeof(int)));
 
+    double realRange = (RMAX - RMIN) / (double) (WIDTH - 1);
+    double imagRange = (IMAX - IMIN) / (double) (HEIGHT - 1);
+
     // Invoke the kernel...
-    fprintf(stderr, "kernel mand...\n");
-    mand<<<gridSize, blockSize>>>(devOutput, maxIter);
+    fprintf(stderr, "kernel: mand(devOutput[%d], maxIter=%d, realRange=%lf, imagRange=%lf)...\n", dataSize, maxIter, realRange, imagRange);
+    mand<<<gridSize, blockSize>>>(devOutput, maxIter, realRange, imagRange);
 
     // Check last error...
     fprintf(stderr, "cudaPeekAtLastError...\n");
     cudaAssert(cudaPeekAtLastError());
 
     // Sync the device...
-    fprintf(stderr, "cudaDeviceSynchronize...\n");
-    cudaAssert(cudaDeviceSynchronize());
+    //fprintf(stderr, "cudaDeviceSynchronize...\n");
+    //cudaAssert(cudaDeviceSynchronize());
 
     // Copy data back to host
     fprintf(stderr, "cudaMemcpy...\n");
@@ -272,51 +278,13 @@ int main(int argc, char ** argv) {
 
     // Write the output...
     fprintf(stderr, "writeOutput...\n");
-    writeOutput(outFileName, hostOutput, WIDTH, HEIGHT);
+    writeOutput(OUT_FILE, hostOutput, WIDTH, HEIGHT);
 
     // Free host data...
     free(hostOutput);
 
     // Report timing...
     printf("Elapsed time: %lf ms\n", time);
-
-//    real_min = 0.3129928802767, real_max =  0.31299305009252;  /* define the 'c' plane */
-//    imag_min = 0.0345483210604, imag_max =  0.0345485012278;   /* you can change these for fun */
-//
-//    real_range = (real_max - real_min) / (WIDTH - 1);
-//    imag_range = (imag_max - imag_min) / (HEIGHT - 1);
-//
-//    time = timer();
-//
-//    fprintf(stderr, "tmax=%d\n", tmax);
-//    timers = (double *) calloc(tmax, sizeof(double));
-//
-//   for (i = 0; i < HEIGHT; ++i) {
-//       timers[tid] = timer() - time;
-//
-//      for (j = 0; j < WIDTH; ++j) {
-//        c_real = real_min + i * real_range;
-//        c_imag = imag_min + j * imag_range;
-//
-//        z_real = 0.0;
-//        z_imag = 0.0;
-//
-//        for(counter = 0; counter < MAX_ITER; ++counter) {
-//           z_current_real = z_real;
-//
-//           z_real = (z_real * z_real) - (z_imag * z_imag) + c_real;
-//           z_imag = (2.0 * z_current_real * z_imag) + c_imag;
-//
-//           z_magnitude = (z_real * z_real) + (z_imag * z_imag);
-//
-//           if(z_magnitude > RADIUS_SQ) {
-//              break;
-//           }
-//        }  //end for
-//
-//        output[i*WIDTH+j] = (int)floor(((double)(MAX_COLOR * counter)) / (double)MAX_ITER);
-//      } // end for
-//   } // end for
 
     return 0;
 }
