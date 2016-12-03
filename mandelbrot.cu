@@ -23,7 +23,7 @@
 #define   BLOCK_SIZE 32                 /* BLOCK_SIZE = GCD(WIDTH, THREADS_PER_BLOCK) = GCD(2400, 1024) */
 #define   OUT_FILE   "Mandelbrot.pgm"
 #define   DEF_ITER   1000
-#define   DEBUG      0
+#define   DEBUG      1
 
 /**
  * writeOutput
@@ -192,7 +192,7 @@ int main(int argc, char ** argv) {
     }
 
     if (maxIter < 1) {
-        printf("Usage : %s [MAX ITERATION]\n", argv[0]);
+        printf("Usage : %s [MAX_ITERATION] [BLOCK_SIZE]\n", argv[0]);
         return 0;
     }
 
@@ -225,7 +225,7 @@ int main(int argc, char ** argv) {
     }
 
     // Set block size...
-    int blockWidth = BLOCK_SIZE;
+    int blockWidth = (argc > 2) ? atoi(argv[2]) : BLOCK_SIZE;
     int blockHeight = blockWidth;
     dim3 blockSize(blockWidth, blockHeight);
     if (DEBUG) fprintf(stderr, "blockSize = (%d,%d)\n", blockSize.x, blockSize.y);
