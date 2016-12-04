@@ -1,7 +1,9 @@
 /**
- * @author Eddie Davis (eddiedavis)
+ * @author Eddie Davis (eddiedavis@u.boisestate.edu)
+ * @author Jeff Pope (jeffreymithoug@u.boisestate.edu)
  * @file mandelbrot.cu
  * @brief CS530 PA4: Mandelbrot-CUDA Impementation
+ * @date 12/4/2016
  */
 
 #include <stdlib.h>
