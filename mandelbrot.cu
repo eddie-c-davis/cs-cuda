@@ -23,10 +23,13 @@
 #define   BLOCK_SIZE 32                 /* BLOCK_SIZE = GCD(WIDTH, THREADS_PER_BLOCK) = GCD(2400, 1024) */
 #define   OUT_FILE   "Mandelbrot.pgm"
 #define   DEF_ITER   1000
-#define   DEBUG      1
+#define   DEBUG      0
 
 /**
  * writeOutput
+ *
+ * Writes Mandelbrot image in PGM format.
+ *
  * @param fileName Filename to write PGM data.
  * @param data Output array data (Mandelbrot pixels)
  * @param width Image width
@@ -68,6 +71,9 @@ void writeOutput(const char *fileName, char *data, int width, int height) {
 
 /**
  * cudaAssert
+ *
+ * CUDA error handler.
+ *
  * @param code cudaError_t error code struct.
  * @param file Name of file in which error occurred.
  * @param line Line number on which error occurred.
@@ -81,17 +87,21 @@ inline void _cudaAssert(cudaError_t code, const char *file, int line) {
 }
 
 /**
- * cudaPrintDevices
+ * cudaPrintDevice
+ *
+ * Prints revelevant information about the given CUDA device.
+ *
  * @param file File pointer to write device properties.
  * @param prop cudaDeviceProp structure pointer.
  * @param dnum CUDA device number.
  */
-void cudaPrintDevices(FILE *file, cudaDeviceProp *prop, int dnum) {
+void cudaPrintDevice(FILE *file, cudaDeviceProp *prop, int dnum) {
     fprintf(file, "Device Number: %d\n", dnum);
     fprintf(file, "  Device name: %s\n", prop->name);
     fprintf(file, "  Memory Clock Rate (KHz): %d\n", prop->memoryClockRate);
     fprintf(file, "  Memory Bus Width (bits): %d\n", prop->memoryBusWidth);
-    fprintf(file, "  Peak Memory Bandwidth (GB/s): %f\n", 2.0* prop->memoryClockRate * (prop->memoryBusWidth / 8) / 1.0e6);
+    fprintf(file, "  Peak Memory Bandwidth (GB/s): %f\n",
+            2.0 * prop->memoryClockRate * (prop->memoryBusWidth / 8) / 1.0e6);
     fprintf(file, "  Compute Version: %d.%d\n", prop->major, prop->minor);
     fprintf(file, "  Compute Mode: ");
 
@@ -129,6 +139,9 @@ void cudaPrintDevices(FILE *file, cudaDeviceProp *prop, int dnum) {
 
 /**
  * mand (CUDA kernel function)
+ *
+ * Generates the Mandelbrot set.
+ *
  * @param output Output array to receive computed Mandelbrot pixels.
  * @param maxIter Max iterations to test for escape values.
  * @param realRange Range of real component.
@@ -173,6 +186,9 @@ __global__ void mand(char* output, int maxIter, double realRange, double imagRan
 
 /**
  * main
+ *
+ * Main function.
+ *
  * @param argc Argument count.
  * @param argv Argument values.
  * @return
@@ -192,7 +208,7 @@ int main(int argc, char ** argv) {
     }
 
     if (maxIter < 1) {
-        printf("Usage : %s [MAX_ITERATION] [BLOCK_SIZE]\n", argv[0]);
+        printf("usage: %s [MAX_ITERATION=%d] [BLOCK_X=%d] [BLOCK_Y=BLOCK_X]\n", argv[0], DEF_ITER, BLOCK_SIZE);
         return 0;
     }
 
@@ -209,7 +225,7 @@ int main(int argc, char ** argv) {
         fprintf(stderr, "nDevices = %d\n", nDevices);
         for (int i = 0; i < nDevices; i++) {
             cudaAssert(cudaGetDeviceProperties(&prop, i));
-            cudaPrintDevices(stderr, &prop, i);
+            cudaPrintDevice(stderr, &prop, i);
         }
     }
 
@@ -226,7 +242,7 @@ int main(int argc, char ** argv) {
 
     // Set block size...
     int blockWidth = (argc > 2) ? atoi(argv[2]) : BLOCK_SIZE;
-    int blockHeight = blockWidth;
+    int blockHeight = (argc > 3) ? atoi(argv[3]) : blockWidth;
     dim3 blockSize(blockWidth, blockHeight);
     if (DEBUG) fprintf(stderr, "blockSize = (%d,%d)\n", blockSize.x, blockSize.y);
 
