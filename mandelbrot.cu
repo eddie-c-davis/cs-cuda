@@ -210,8 +210,7 @@ int main(int argc, char ** argv) {
     }
 
     if (maxIter < 1) {
-        //printf("usage: %s [MAX_ITERATION=%d] [BLOCK_X=%d] [BLOCK_Y=BLOCK_X] [BLOCK_Z=1]\n", argv[0], DEF_ITER, BLOCK_SIZE);
-        printf("usage: %s [MAX_ITERATION=%d] [BLOCK_X=%d] [BLOCK_Y=BLOCK_X]\n", argv[0], DEF_ITER, BLOCK_SIZE);
+        printf("usage: %s [MAX_ITERATION=%d] [BLOCK_X=%d] [BLOCK_Y=1]\n", argv[0], DEF_ITER, BLOCK_SIZE);
         return 0;
     }
 
@@ -225,11 +224,11 @@ int main(int argc, char ** argv) {
 
     if (DEBUG) {
         fprintf(stderr, "nDevices = %d\n", nDevices);
-//        cudaDeviceProp prop;
-//        for (int i = 0; i < nDevices; i++) {
-//            cudaAssert(cudaGetDeviceProperties(&prop, i));
-//            cudaPrintDevice(stderr, &prop, i);
-//        }
+        cudaDeviceProp prop;
+        for (int i = 0; i < nDevices; i++) {
+            cudaAssert(cudaGetDeviceProperties(&prop, i));
+            cudaPrintDevice(stderr, &prop, i);
+        }
     }
 
     // Get data size...
@@ -259,19 +258,16 @@ int main(int argc, char ** argv) {
     }
 
     if (blockY < 1) {
-        blockY = blockX;
+        blockY = MIN_BLK_SZ;
     }
 
-    //int blockZ = (argc > 4) ? atoi(argv[4]) : MIN_BLK_SZ;
-
-    dim3 blockSize(blockX, blockY);//, blockZ);
+    dim3 blockSize(blockX, blockY);
     if (DEBUG) fprintf(stderr, "blockSize = (%d,%d,%d)\n", blockSize.x, blockSize.y, blockSize.z);
 
     // Set grid size...
     int gridX = WIDTH / blockSize.x;
     int gridY = HEIGHT / blockSize.y;
-    //int gridZ = 1;
-    dim3 gridSize(gridX, gridY); //, gridZ);
+    dim3 gridSize(gridX, gridY);
     if (DEBUG) fprintf(stderr, "gridSize = (%d,%d,%d)\n", gridSize.x, gridSize.y, gridSize.z);
 
     // Create event timers...
