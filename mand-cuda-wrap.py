@@ -57,9 +57,9 @@ def main():
     print('BlockX,BlockY,GridX,GridY,MaxIter,Time')
 
     blockX = xMin
-    while blockX <= xMax:
+    while blockX < xMax + 1:
         blockY = yMin
-        while blockY <= yMax:
+        while blockY < yMax + 1:
             gridX = imgSize // blockX
             if blockY > 0:
                 gridY = imgSize // blockY
@@ -79,13 +79,8 @@ def main():
             print('%d,%d,%d,%d,%d,%lf' % (blockX, blockY, gridX, gridY, nIter, mtime))
 
             blockY += inc
-            if blockY > yMax:
-                blockY = yMax
 
         blockX += inc
-        if blockX > xMax:
-            blockX = xMax
-
 
 
 if __name__ == '__main__':
