@@ -26,7 +26,7 @@
 #define   MIN_BLK_SZ 1
 #define   OUT_FILE   "Mandelbrot.pgm"
 #define   DEF_ITER   1000
-#define   DEBUG      1
+#define   DEBUG      0
 
 /**
  * writeOutput
@@ -210,14 +210,14 @@ int main(int argc, char ** argv) {
     }
 
     if (maxIter < 1) {
-        printf("usage: %s [MAX_ITERATION=%d] [BLOCK_X=%d] [BLOCK_Y=BLOCK_X] [BLOCK_Z=1]\n", argv[0], DEF_ITER, BLOCK_SIZE);
+        //printf("usage: %s [MAX_ITERATION=%d] [BLOCK_X=%d] [BLOCK_Y=BLOCK_X] [BLOCK_Z=1]\n", argv[0], DEF_ITER, BLOCK_SIZE);
+        printf("usage: %s [MAX_ITERATION=%d] [BLOCK_X=%d] [BLOCK_Y=BLOCK_X]\n", argv[0], DEF_ITER, BLOCK_SIZE);
         return 0;
     }
 
     printf("Running Mandelbrot-CUDA with %d iterations...\n", maxIter);
 
     cudaAssert(cudaGetDeviceCount(&nDevices));
-
     if (nDevices < 1) {
         printf("ERROR: No valid CUDA devices on this machine!\n");
         return -1;
@@ -225,11 +225,11 @@ int main(int argc, char ** argv) {
 
     if (DEBUG) {
         fprintf(stderr, "nDevices = %d\n", nDevices);
-        cudaDeviceProp prop;
-        for (int i = 0; i < nDevices; i++) {
-            cudaAssert(cudaGetDeviceProperties(&prop, i));
-            cudaPrintDevice(stderr, &prop, i);
-        }
+//        cudaDeviceProp prop;
+//        for (int i = 0; i < nDevices; i++) {
+//            cudaAssert(cudaGetDeviceProperties(&prop, i));
+//            cudaPrintDevice(stderr, &prop, i);
+//        }
     }
 
     // Get data size...
@@ -244,18 +244,34 @@ int main(int argc, char ** argv) {
     }
 
     // Set block size...
-    int blockX = (argc > 2) ? atoi(argv[2]) : BLOCK_SIZE;
-    int blockY = (argc > 3) ? atoi(argv[3]) : blockX;
-    int blockZ = (argc > 4) ? atoi(argv[4]) : MIN_BLK_SZ;
+    int blockX = 0;
+    if (argc > 2) {
+        blockX = atoi(argv[2]);
+    }
 
-    dim3 blockSize(blockX, blockY, blockZ);
+    if (blockX < 1) {
+        blockX = BLOCK_SIZE;
+    }
+
+    int blockY = 0;
+    if (argc > 3) {
+        blockY = atoi(argv[3]);
+    }
+
+    if (blockY < 1) {
+        blockY = blockX;
+    }
+
+    //int blockZ = (argc > 4) ? atoi(argv[4]) : MIN_BLK_SZ;
+
+    dim3 blockSize(blockX, blockY);//, blockZ);
     if (DEBUG) fprintf(stderr, "blockSize = (%d,%d,%d)\n", blockSize.x, blockSize.y, blockSize.z);
 
     // Set grid size...
     int gridX = WIDTH / blockSize.x;
     int gridY = HEIGHT / blockSize.y;
-    int gridZ = 1;
-    dim3 gridSize(gridX, gridY, gridZ);
+    //int gridZ = 1;
+    dim3 gridSize(gridX, gridY); //, gridZ);
     if (DEBUG) fprintf(stderr, "gridSize = (%d,%d,%d)\n", gridSize.x, gridSize.y, gridSize.z);
 
     // Create event timers...
@@ -280,16 +296,6 @@ int main(int argc, char ** argv) {
     }
 
     mand<<<gridSize, blockSize>>>(d_output, maxIter, realRange, imagRange);
-
-    // Check last error...
-    // cudaMemcpy peeks at last error so need for peek.
-    //if (DEBUG) fprintf(stderr, "cudaPeekAtLastError...\n");
-    //cudaAssert(cudaPeekAtLastError());
-
-    // Sync the device...
-    // cudaMemcpy is an implicit barrier so need need for sync.
-    //if (DEBUG) fprintf(stderr, "cudaDeviceSynchronize...\n");
-    //cudaAssert(cudaDeviceSynchronize());
 
     // cudaMemcpy is an implicit barrier so need need for sync.
 
