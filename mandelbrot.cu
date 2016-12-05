@@ -23,9 +23,10 @@
 #define   HEIGHT     2400               /* Image height in pixels */
 #define   MAX_COLOR  UCHAR_MAX          /* 255 */
 #define   BLOCK_SIZE 32                 /* BLOCK_SIZE = GCD(WIDTH, THREADS_PER_BLOCK) = GCD(2400, 1024) */
+#define   MIN_BLK_SZ 1
 #define   OUT_FILE   "Mandelbrot.pgm"
 #define   DEF_ITER   1000
-#define   DEBUG      0
+#define   DEBUG      1
 
 /**
  * writeOutput
@@ -197,7 +198,6 @@ __global__ void mand(char* output, int maxIter, double realRange, double imagRan
  */
 int main(int argc, char ** argv) {
     int nDevices = 0;
-    cudaDeviceProp prop;
 
     char *output = NULL;
     char *d_output = NULL;
@@ -210,7 +210,7 @@ int main(int argc, char ** argv) {
     }
 
     if (maxIter < 1) {
-        printf("usage: %s [MAX_ITERATION=%d] [BLOCK_X=%d] [BLOCK_Y=BLOCK_X]\n", argv[0], DEF_ITER, BLOCK_SIZE);
+        printf("usage: %s [MAX_ITERATION=%d] [BLOCK_X=%d] [BLOCK_Y=BLOCK_X] [BLOCK_Z=1]\n", argv[0], DEF_ITER, BLOCK_SIZE);
         return 0;
     }
 
@@ -225,6 +225,7 @@ int main(int argc, char ** argv) {
 
     if (DEBUG) {
         fprintf(stderr, "nDevices = %d\n", nDevices);
+        cudaDeviceProp prop;
         for (int i = 0; i < nDevices; i++) {
             cudaAssert(cudaGetDeviceProperties(&prop, i));
             cudaPrintDevice(stderr, &prop, i);
@@ -243,16 +244,19 @@ int main(int argc, char ** argv) {
     }
 
     // Set block size...
-    int blockWidth = (argc > 2) ? atoi(argv[2]) : BLOCK_SIZE;
-    int blockHeight = (argc > 3) ? atoi(argv[3]) : blockWidth;
-    dim3 blockSize(blockWidth, blockHeight);
-    if (DEBUG) fprintf(stderr, "blockSize = (%d,%d)\n", blockSize.x, blockSize.y);
+    int blockX = (argc > 2) ? atoi(argv[2]) : BLOCK_SIZE;
+    int blockY = (argc > 3) ? atoi(argv[3]) : blockX;
+    int blockZ = (argc > 4) ? atoi(argv[4]) : MIN_BLK_SZ;
+
+    dim3 blockSize(blockX, blockY, blockZ);
+    if (DEBUG) fprintf(stderr, "blockSize = (%d,%d,%d)\n", blockSize.x, blockSize.y, blockSize.z);
 
     // Set grid size...
-    int gridWidth = WIDTH / blockSize.x;
-    int gridHeight = HEIGHT / blockSize.y;
-    dim3 gridSize(gridWidth, gridHeight);
-    if (DEBUG) fprintf(stderr, "gridSize = (%d,%d)\n", gridSize.x, gridSize.y);
+    int gridX = WIDTH / blockSize.x;
+    int gridY = HEIGHT / blockSize.y;
+    int gridZ = 1;
+    dim3 gridSize(gridX, gridY, gridZ);
+    if (DEBUG) fprintf(stderr, "gridSize = (%d,%d,%d)\n", gridSize.x, gridSize.y, gridSize.z);
 
     // Create event timers...
     cudaEvent_t start, stop;
