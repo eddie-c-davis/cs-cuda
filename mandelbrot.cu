@@ -28,6 +28,8 @@
 #define   DEF_ITER   1000
 #define   DEBUG      0
 
+typedef unsigned char BYTE;
+
 /**
  * writeOutput
  *
@@ -38,7 +40,7 @@
  * @param width Image width
  * @param height Image height
  */
-void writeOutput(const char *fileName, char *data, int width, int height) {
+void writeOutput(const char *fileName, BYTE *data, int width, int height) {
     int i, j;      /* index variables */
     int max = -1;  /* for pgm file output */
     int size = width * height;
@@ -150,7 +152,7 @@ void cudaPrintDevice(FILE *file, cudaDeviceProp *prop, int dnum) {
  * @param realRange Range of real component.
  * @param imagRange Range of imaginary component.
  */
-__global__ void mand(char* output, int maxIter, double realRange, double imagRange) {
+__global__ void mand(BYTE* output, int maxIter, double realRange, double imagRange) {
     int col = blockDim.x * blockIdx.x + threadIdx.x;  // Image col (X coord)
     int row = blockDim.y * blockIdx.y + threadIdx.y;  // Image row (Y coord)
 
@@ -183,7 +185,7 @@ __global__ void mand(char* output, int maxIter, double realRange, double imagRan
             }
         }
 
-        output[idx] = (char) floor(((double) (MAX_COLOR * iter)) / (double) maxIter);
+        output[idx] = (BYTE) floor(((double) (MAX_COLOR * iter)) / (double) maxIter);
     }
 }
 
@@ -199,8 +201,8 @@ __global__ void mand(char* output, int maxIter, double realRange, double imagRan
 int main(int argc, char ** argv) {
     int nDevices = 0;
 
-    char *output = NULL;
-    char *d_output = NULL;
+    BYTE *output = NULL;
+    BYTE *d_output = NULL;
 
     float time; 	/*timer*/
 
@@ -236,7 +238,7 @@ int main(int argc, char ** argv) {
     if (DEBUG) fprintf(stderr, "dataSize = %d\n", dataSize);
 
     /* Allocate memory on host to store output values for pixels */
-    output = (char *) calloc(dataSize, sizeof(char));
+    output = (BYTE *) calloc(dataSize, sizeof(BYTE));
     if (output == NULL) {
         perror("output");
         return -1;
@@ -276,7 +278,7 @@ int main(int argc, char ** argv) {
     cudaAssert(cudaEventCreate(&stop));
 
     // Start timer...
-    cudaEventRecord(start);
+    cudaAssert(cudaEventRecord(start));
 
     // Allocate memory on device...
     if (DEBUG) fprintf(stderr, "cudaMalloc...\n");
@@ -324,4 +326,3 @@ int main(int argc, char ** argv) {
 
     return 0;
 }
-
