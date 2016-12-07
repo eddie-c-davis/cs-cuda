@@ -216,7 +216,7 @@ int main(int argc, char ** argv) {
 
     if (maxIter < 1) {
         printf("usage: %s [MAX_ITERATION=%d] [WIDTH=%d] [HEIGHT=%d] [BLOCK_X=%d] [BLOCK_Y=1]\n",
-               argv[0], DEF_ITER, DEF_WIDTH, DEF_HEIGHT, BLOCK_SIZE);
+               argv[0], DEF_ITER, DEF_WIDTH, DEF_HEIGHT, MIN_BLK_SZ);
         return 0;
     }
 
@@ -265,7 +265,7 @@ int main(int argc, char ** argv) {
     }
 
     if (blockX < 1) {
-        blockX = BLOCK_SIZE;
+        blockX = MIN_BLK_SZ;
     }
 
     int blockY = 0;

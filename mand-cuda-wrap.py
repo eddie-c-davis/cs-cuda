@@ -28,7 +28,7 @@ def main():
     nIter = 10000
     nRuns = 5
     inc = 32
-    xMin = 32
+    xMin = 0
     yMin = 0
     xMax = 1024
     yMax = xMax
