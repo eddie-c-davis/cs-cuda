@@ -11,6 +11,8 @@ import subprocess as sub
 import traceback as tb
 import filecmp
 
+THREADS_PER_BLOCK = 1024
+
 def run(args, stream=None):
     data = sub.check_output(args, env=os.environ, stderr=sub.STDOUT)
     output = data.decode()
@@ -72,28 +74,30 @@ def main():
             else:
                 gridY = imgHeight
 
-            # Invoke CUDA C program
-            args = [exec, '%d' % nIter, '%d' % imgWidth, '%d' % imgHeight, '%d' % blockX, '%d' % blockY]
+            nThreads = blockX * blockY
+            if nThreads < THREADS_PER_BLOCK:
+                # Invoke CUDA C program
+                args = [exec, '%d' % nIter, '%d' % imgWidth, '%d' % imgHeight, '%d' % blockX, '%d' % blockY]
 
-            isValid = True
+                isValid = True
 
-            mtime = 0.0
-            for i in range(nRuns):
-                output = run(args)
+                mtime = 0.0
+                for i in range(nRuns):
+                    output = run(args)
 
-                # Diff output file with reference file on 1st iteration, only report times for runs with valid output...
-                if i == 0:
-                    isValid = filecmp.cmp(outFile, refFile, False)
-                    if not isValid:
-                        break
+                    # Diff output file with reference file on 1st iteration, only report times for runs with valid output...
+                    if i == 0:
+                        isValid = filecmp.cmp(outFile, refFile, False)
+                        if not isValid:
+                            break
 
-                lines = output.rstrip().split("\n")
-                mtime += float(lines[-1].split()[-2])
+                    lines = output.rstrip().split("\n")
+                    mtime += float(lines[-1].split()[-2])
 
-            if isValid:
-                mtime /= float(nRuns)
-                print('%d,%d,%d,%d,%d,%lf' % (blockX, blockY, gridX, gridY, nIter, mtime))
-                sys.stdout.flush()
+                if isValid:
+                    mtime /= float(nRuns)
+                    print('%d,%d,%d,%d,%d,%lf' % (blockX, blockY, gridX, gridY, nIter, mtime))
+                    sys.stdout.flush()
 
             blockY += inc
 
