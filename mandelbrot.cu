@@ -295,7 +295,7 @@ int main(int argc, char ** argv) {
 
     // Allocate memory on device...
     if (DEBUG) fprintf(stderr, "cudaMalloc...\n");
-    cudaAssert(cudaMalloc(&d_output, dataSize * sizeof(char)));
+    cudaAssert(cudaMalloc(&d_output, dataSize * sizeof(BYTE)));
 
     double realRange = (RMAX - RMIN) / (double) (width - 1);
     double imagRange = (IMAX - IMIN) / (double) (height - 1);
@@ -312,7 +312,7 @@ int main(int argc, char ** argv) {
 
     // Copy data back to host...
     if (DEBUG) fprintf(stderr, "cudaMemcpy...\n");
-    cudaAssert(cudaMemcpy(output, d_output, dataSize, cudaMemcpyDeviceToHost));
+    cudaAssert(cudaMemcpy(output, d_output, dataSize * sizeof(BYTE), cudaMemcpyDeviceToHost));
 
     // Free data on device...
     if (DEBUG) fprintf(stderr, "cudaFree...\n");
