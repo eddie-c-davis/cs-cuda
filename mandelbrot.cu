@@ -19,8 +19,8 @@
 #define   IMAX       0.0345485012278
 
 #define   RADIUS_SQ  4.0                /* 2^2  */
-#define   WIDTH      2400               /* Image width in pixels */
-#define   HEIGHT     2400               /* Image height in pixels */
+#define   DEF_WIDTH  2400               /* Image width in pixels */
+#define   DEF_HEIGHT 2400               /* Image height in pixels */
 #define   MAX_COLOR  UCHAR_MAX          /* 255 */
 #define   BLOCK_SIZE 32                 /* BLOCK_SIZE = GCD(WIDTH, THREADS_PER_BLOCK) = GCD(2400, 1024) */
 #define   MIN_BLK_SZ 1
@@ -149,15 +149,17 @@ void cudaPrintDevice(FILE *file, cudaDeviceProp *prop, int dnum) {
  *
  * @param output Output array to receive computed Mandelbrot pixels.
  * @param maxIter Max iterations to test for escape values.
+ * @param width Image width.
+ * @param height Image height.
  * @param realRange Range of real component.
  * @param imagRange Range of imaginary component.
  */
-__global__ void mand(BYTE* output, int maxIter, double realRange, double imagRange) {
+__global__ void mand(BYTE* output, int maxIter, int width, int height, double realRange, double imagRange) {
     int col = blockDim.x * blockIdx.x + threadIdx.x;  // Image col (X coord)
     int row = blockDim.y * blockIdx.y + threadIdx.y;  // Image row (Y coord)
 
-    if (col < WIDTH && row < HEIGHT) {
-        int idx = row * WIDTH + col;
+    if (col < width && row < height) {
+        int idx = row * width + col;
 
         double cReal = RMIN + row * realRange;
         double cImag = IMIN + col * imagRange;
@@ -212,11 +214,22 @@ int main(int argc, char ** argv) {
     }
 
     if (maxIter < 1) {
-        printf("usage: %s [MAX_ITERATION=%d] [BLOCK_X=%d] [BLOCK_Y=1]\n", argv[0], DEF_ITER, BLOCK_SIZE);
+        printf("usage: %s [MAX_ITERATION=%d] [WIDTH=%d] [HEIGHT=%d] [BLOCK_X=%d] [BLOCK_Y=1]\n",
+               argv[0], DEF_ITER, DEF_WIDTH, DEF_HEIGHT, BLOCK_SIZE);
         return 0;
     }
 
-    printf("Running Mandelbrot-CUDA with %d iterations...\n", maxIter);
+    int width = DEF_WIDTH;
+    if (argc > 2) {
+        width = atoi(argv[2]);
+    }
+
+    int height = DEF_HEIGHT;
+    if (argc > 3) {
+        height = atoi(argv[3]);
+    }
+
+    printf("Running Mandelbrot-CUDA with (w,h) = (%d,%d) and %d max iterations...\n", width, height, maxIter);
 
     cudaAssert(cudaGetDeviceCount(&nDevices));
     if (nDevices < 1) {
@@ -234,7 +247,7 @@ int main(int argc, char ** argv) {
     }
 
     // Get data size...
-    int dataSize = WIDTH * HEIGHT;
+    int dataSize = width * height;
     if (DEBUG) fprintf(stderr, "dataSize = %d\n", dataSize);
 
     /* Allocate memory on host to store output values for pixels */
@@ -246,8 +259,8 @@ int main(int argc, char ** argv) {
 
     // Set block size...
     int blockX = 0;
-    if (argc > 2) {
-        blockX = atoi(argv[2]);
+    if (argc > 4) {
+        blockX = atoi(argv[4]);
     }
 
     if (blockX < 1) {
@@ -255,8 +268,8 @@ int main(int argc, char ** argv) {
     }
 
     int blockY = 0;
-    if (argc > 3) {
-        blockY = atoi(argv[3]);
+    if (argc > 5) {
+        blockY = atoi(argv[5]);
     }
 
     if (blockY < 1) {
@@ -267,8 +280,8 @@ int main(int argc, char ** argv) {
     if (DEBUG) fprintf(stderr, "blockSize = (%d,%d,%d)\n", blockSize.x, blockSize.y, blockSize.z);
 
     // Set grid size...
-    int gridX = WIDTH / blockSize.x;
-    int gridY = HEIGHT / blockSize.y;
+    int gridX = width / blockSize.x;
+    int gridY = height / blockSize.y;
     dim3 gridSize(gridX, gridY);
     if (DEBUG) fprintf(stderr, "gridSize = (%d,%d,%d)\n", gridSize.x, gridSize.y, gridSize.z);
 
@@ -284,8 +297,8 @@ int main(int argc, char ** argv) {
     if (DEBUG) fprintf(stderr, "cudaMalloc...\n");
     cudaAssert(cudaMalloc(&d_output, dataSize * sizeof(char)));
 
-    double realRange = (RMAX - RMIN) / (double) (WIDTH - 1);
-    double imagRange = (IMAX - IMIN) / (double) (HEIGHT - 1);
+    double realRange = (RMAX - RMIN) / (double) (width - 1);
+    double imagRange = (IMAX - IMIN) / (double) (height - 1);
 
     // Invoke the kernel...
     if (DEBUG) {
@@ -293,7 +306,7 @@ int main(int argc, char ** argv) {
                 dataSize, maxIter, realRange, imagRange);
     }
 
-    mand<<<gridSize, blockSize>>>(d_output, maxIter, realRange, imagRange);
+    mand<<<gridSize, blockSize>>>(d_output, maxIter, width, height, realRange, imagRange);
 
     // cudaMemcpy is an implicit barrier so need need for sync.
 
@@ -316,7 +329,7 @@ int main(int argc, char ** argv) {
 
     // Write the output...
     if (DEBUG) fprintf(stderr, "writeOutput...\n");
-    writeOutput(OUT_FILE, output, WIDTH, HEIGHT);
+    writeOutput(OUT_FILE, output, width, height);
 
     // Free host data...
     free(output);

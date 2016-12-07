@@ -29,7 +29,8 @@ def main():
     yMin = 0
     xMax = 512
     yMax = xMax
-    imgSize = 2400
+    imgWidth= 2400
+    imgHeight = imgWidth
 
     args = sys.argv[1:]
     nArgs = len(args)
@@ -51,7 +52,7 @@ def main():
         yMax = int(args[7])
 
     if '-h' in exec:
-        print("usage: mand-cuda-wrap.py <executable> <max_iterations> <increment> <runs_per_case> <min_block_x> <max_block_x> <min_block_y> <max_block_y>")
+        print("usage: mand-cuda-wrap.py <executable> <max_iterations> <img_width> <img_height> <increment> <runs_per_case> <min_block_x> <max_block_x> <min_block_y> <max_block_y>")
         return
 
     print('BlockX,BlockY,GridX,GridY,MaxIter,Time')
@@ -60,14 +61,14 @@ def main():
     while blockX < xMax + 1:
         blockY = yMin
         while blockY < yMax + 1:
-            gridX = imgSize // blockX
+            gridX = imgWidth // blockX
             if blockY > 0:
-                gridY = imgSize // blockY
+                gridY = imgHeight // blockY
             else:
-                gridY = imgSize
+                gridY = imgHeight
 
             # Invoke CUDA C program
-            args = [exec, '%d' % nIter, '%d' % blockX, '%d' % blockY]
+            args = [exec, '%d' % nIter, '%d' % imgWidth, '%d' % imgHeight, '%d' % blockX, '%d' % blockY]
 
             mtime = 0.0
             for i in range(nRuns):
@@ -94,3 +95,4 @@ if __name__ == '__main__':
         print('Unexpected Exception: ' + str(e))
         tb.print_exc()
         os._exit(1)
+
