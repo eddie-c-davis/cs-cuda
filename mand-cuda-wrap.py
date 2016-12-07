@@ -75,7 +75,7 @@ def main():
                 gridY = imgHeight
 
             nThreads = blockX * blockY
-            if nThreads < THREADS_PER_BLOCK:
+            if nThreads <= THREADS_PER_BLOCK:
                 # Invoke CUDA C program
                 args = [exec, '%d' % nIter, '%d' % imgWidth, '%d' % imgHeight, '%d' % blockX, '%d' % blockY]
 
