@@ -93,6 +93,7 @@ def main():
             if isValid:
                 mtime /= float(nRuns)
                 print('%d,%d,%d,%d,%d,%lf' % (blockX, blockY, gridX, gridY, nIter, mtime))
+                sys.stdout.flush()
 
             blockY += inc
 
