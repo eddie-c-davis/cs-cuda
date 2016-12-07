@@ -7,11 +7,12 @@
 
 import os
 import sys
-import subprocess
+import subprocess as sub
 import traceback as tb
+import filecmp
 
 def run(args, stream=None):
-    data = subprocess.check_output(args, env=os.environ, stderr=subprocess.STDOUT)
+    data = sub.check_output(args, env=os.environ, stderr=sub.STDOUT)
     output = data.decode()
 
     if stream is not None:
@@ -27,7 +28,7 @@ def main():
     inc = 32
     xMin = 32
     yMin = 0
-    xMax = 512
+    xMax = 1024
     yMax = xMax
     imgWidth= 2400
     imgHeight = imgWidth
@@ -55,6 +56,10 @@ def main():
         print("usage: mand-cuda-wrap.py <executable> <max_iterations> <img_width> <img_height> <increment> <runs_per_case> <min_block_x> <max_block_x> <min_block_y> <max_block_y>")
         return
 
+    path = os.path.dirname(exec)
+    outFile = '%s/Mandelbrot.pgm' % path
+    refFile = '%s/Mandelbrot-ref.pgm' % path
+
     print('BlockX,BlockY,GridX,GridY,MaxIter,Time')
 
     blockX = xMin
@@ -70,14 +75,24 @@ def main():
             # Invoke CUDA C program
             args = [exec, '%d' % nIter, '%d' % imgWidth, '%d' % imgHeight, '%d' % blockX, '%d' % blockY]
 
+            isValid = True
+
             mtime = 0.0
             for i in range(nRuns):
                 output = run(args)
+
+                # Diff output file with reference file on 1st iteration, only report times for runs with valid output...
+                if i == 0:
+                    isValid = filecmp.cmp(outFile, refFile, False)
+                    if not isValid:
+                        break
+
                 lines = output.rstrip().split("\n")
                 mtime += float(lines[-1].split()[-2])
 
-            mtime /= float(nRuns)
-            print('%d,%d,%d,%d,%d,%lf' % (blockX, blockY, gridX, gridY, nIter, mtime))
+            if isValid:
+                mtime /= float(nRuns)
+                print('%d,%d,%d,%d,%d,%lf' % (blockX, blockY, gridX, gridY, nIter, mtime))
 
             blockY += inc
 

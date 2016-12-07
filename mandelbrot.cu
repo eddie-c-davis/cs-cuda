@@ -28,7 +28,8 @@
 #define   DEF_ITER   1000
 #define   DEBUG      0
 
-typedef unsigned char BYTE;
+//typedef int DTYPE;
+typedef unsigned char DTYPE;
 
 /**
  * writeOutput
@@ -40,7 +41,7 @@ typedef unsigned char BYTE;
  * @param width Image width
  * @param height Image height
  */
-void writeOutput(const char *fileName, BYTE *data, int width, int height) {
+void writeOutput(const char *fileName, DTYPE *data, int width, int height) {
     int i, j;      /* index variables */
     int max = -1;  /* for pgm file output */
     int size = width * height;
@@ -154,7 +155,7 @@ void cudaPrintDevice(FILE *file, cudaDeviceProp *prop, int dnum) {
  * @param realRange Range of real component.
  * @param imagRange Range of imaginary component.
  */
-__global__ void mand(BYTE* output, int maxIter, int width, int height, double realRange, double imagRange) {
+__global__ void mand(DTYPE* output, int maxIter, int width, int height, double realRange, double imagRange) {
     int col = blockDim.x * blockIdx.x + threadIdx.x;  // Image col (X coord)
     int row = blockDim.y * blockIdx.y + threadIdx.y;  // Image row (Y coord)
 
@@ -187,7 +188,7 @@ __global__ void mand(BYTE* output, int maxIter, int width, int height, double re
             }
         }
 
-        output[idx] = (BYTE) floor(((double) (MAX_COLOR * iter)) / (double) maxIter);
+        output[idx] = (DTYPE) floor(((double) (MAX_COLOR * iter)) / (double) maxIter);
     }
 }
 
@@ -203,8 +204,8 @@ __global__ void mand(BYTE* output, int maxIter, int width, int height, double re
 int main(int argc, char ** argv) {
     int nDevices = 0;
 
-    BYTE *output = NULL;
-    BYTE *d_output = NULL;
+    DTYPE *output = NULL;
+    DTYPE *d_output = NULL;
 
     float time; 	/*timer*/
 
@@ -251,7 +252,7 @@ int main(int argc, char ** argv) {
     if (DEBUG) fprintf(stderr, "dataSize = %d\n", dataSize);
 
     /* Allocate memory on host to store output values for pixels */
-    output = (BYTE *) calloc(dataSize, sizeof(BYTE));
+    output = (DTYPE *) calloc(dataSize, sizeof(DTYPE));
     if (output == NULL) {
         perror("output");
         return -1;
@@ -295,7 +296,7 @@ int main(int argc, char ** argv) {
 
     // Allocate memory on device...
     if (DEBUG) fprintf(stderr, "cudaMalloc...\n");
-    cudaAssert(cudaMalloc(&d_output, dataSize * sizeof(BYTE)));
+    cudaAssert(cudaMalloc(&d_output, dataSize * sizeof(DTYPE)));
 
     double realRange = (RMAX - RMIN) / (double) (width - 1);
     double imagRange = (IMAX - IMIN) / (double) (height - 1);
@@ -312,7 +313,7 @@ int main(int argc, char ** argv) {
 
     // Copy data back to host...
     if (DEBUG) fprintf(stderr, "cudaMemcpy...\n");
-    cudaAssert(cudaMemcpy(output, d_output, dataSize * sizeof(BYTE), cudaMemcpyDeviceToHost));
+    cudaAssert(cudaMemcpy(output, d_output, dataSize * sizeof(DTYPE), cudaMemcpyDeviceToHost));
 
     // Free data on device...
     if (DEBUG) fprintf(stderr, "cudaFree...\n");
