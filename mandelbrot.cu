@@ -21,9 +21,9 @@
 #define   RADIUS_SQ  4.0                /* 2^2  */
 #define   DEF_WIDTH  2400               /* Image width in pixels */
 #define   DEF_HEIGHT 2400               /* Image height in pixels */
-#define   MAX_COLOR  UCHAR_MAX          /* 255 */
-#define   BLOCK_SIZE 32                 /* BLOCK_SIZE = GCD(WIDTH, THREADS_PER_BLOCK) = GCD(2400, 1024) */
+#define   DEF_BLK_SZ 32                 /* BLOCK_SIZE = GCD(WIDTH, THREADS_PER_BLOCK) = GCD(2400, 1024) */
 #define   MIN_BLK_SZ 1
+#define   MAX_COLOR  UCHAR_MAX          /* 255 */
 #define   OUT_FILE   "Mandelbrot.pgm"
 #define   DEF_ITER   1000
 #define   DEBUG      0
@@ -275,6 +275,10 @@ int main(int argc, char ** argv) {
 
     if (blockY < 1) {
         blockY = MIN_BLK_SZ;
+    }
+
+    if (blockX == MIN_BLK_SZ && blockY == MIN_BLK_SZ) {
+        blockX = DEF_BLK_SZ;
     }
 
     dim3 blockSize(blockX, blockY);

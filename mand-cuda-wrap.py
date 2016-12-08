@@ -11,9 +11,13 @@ import subprocess as sub
 import traceback as tb
 import filecmp
 
+DEBUG = False
 THREADS_PER_BLOCK = 1024
 
 def run(args, stream=None):
+    if DEBUG:
+        print(' '.join(args))
+
     data = sub.check_output(args, env=os.environ, stderr=sub.STDOUT)
     output = data.decode()
 
@@ -64,17 +68,30 @@ def main():
 
     print('BlockX,BlockY,GridX,GridY,MaxIter,Time')
 
+    if DEBUG:
+        print("xMin = %d, yMin = %d, xMax = %d, yMax = %d" %  (xMin, yMin, xMax, yMax))
+
     blockX = xMin
     while blockX < xMax + 1:
         blockY = yMin
+        nThreads = blockX * blockY
+        if DEBUG:
+            print("blockX = %d, blockY = %d, nThreads = %d" % (blockX, blockY, nThreads))
+        
         while blockY < yMax + 1:
-            gridX = imgWidth // blockX
+            if blockX > 0:
+                gridX = imgWidth // blockX
+            else:
+                gridX = imgWidth
+
             if blockY > 0:
                 gridY = imgHeight // blockY
             else:
                 gridY = imgHeight
 
-            nThreads = blockX * blockY
+            if blockX == 0 and blockY == 0:
+                nThreads = THREADS_PER_BLOCK + 1    # Error state...
+
             if nThreads <= THREADS_PER_BLOCK:
                 # Invoke CUDA C program
                 args = [exec, '%d' % nIter, '%d' % imgWidth, '%d' % imgHeight, '%d' % blockX, '%d' % blockY]
@@ -90,6 +107,9 @@ def main():
                         isValid = filecmp.cmp(outFile, refFile, False)
                         if not isValid:
                             break
+
+                    #if DEBUG:
+                        #print(output, file=sys.stderr)
 
                     lines = output.rstrip().split("\n")
                     mtime += float(lines[-1].split()[-2])
