@@ -12,6 +12,7 @@ import traceback as tb
 import filecmp
 
 DEBUG = False
+MIN_VALID_TIME = 0.01
 THREADS_PER_BLOCK = 1024
 
 def run(args, stream=None):
@@ -108,16 +109,14 @@ def main():
                         if not isValid:
                             break
 
-                    #if DEBUG:
-                        #print(output, file=sys.stderr)
-
                     lines = output.rstrip().split("\n")
                     mtime += float(lines[-1].split()[-2])
 
                 if isValid:
                     mtime /= float(nRuns)
-                    print('%d,%d,%d,%d,%d,%lf' % (blockX, blockY, gridX, gridY, nIter, mtime))
-                    sys.stdout.flush()
+                    if mtime  >= MIN_VALID_TIME:
+                        print('%d,%d,%d,%d,%d,%lf' % (blockX, blockY, gridX, gridY, nIter, mtime))
+                        sys.stdout.flush()
 
             blockY += inc
 
