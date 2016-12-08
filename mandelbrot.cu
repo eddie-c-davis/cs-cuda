@@ -230,8 +230,6 @@ int main(int argc, char ** argv) {
         height = atoi(argv[3]);
     }
 
-    printf("Running Mandelbrot-CUDA with (w,h) = (%d,%d) and %d max iterations...\n", width, height, maxIter);
-
     cudaAssert(cudaGetDeviceCount(&nDevices));
     if (nDevices < 1) {
         printf("ERROR: No valid CUDA devices on this machine!\n");
@@ -248,11 +246,12 @@ int main(int argc, char ** argv) {
     }
 
     // Get data size...
-    int dataSize = width * height;
-    if (DEBUG) fprintf(stderr, "dataSize = %d\n", dataSize);
+    int nPixels = width * height;
+    int nBytes = nPixels * sizeof(DTYPE);
+    if (DEBUG) fprintf(stderr, "nPixels = %d, nBytes = %d\n", nPixels, nBytes);
 
     /* Allocate memory on host to store output values for pixels */
-    output = (DTYPE *) calloc(dataSize, sizeof(DTYPE));
+    output = (DTYPE *) malloc(nBytes);
     if (output == NULL) {
         perror("output");
         return -1;
@@ -290,6 +289,9 @@ int main(int argc, char ** argv) {
     dim3 gridSize(gridX, gridY);
     if (DEBUG) fprintf(stderr, "gridSize = (%d,%d,%d)\n", gridSize.x, gridSize.y, gridSize.z);
 
+    printf("Running Mandelbrot-CUDA with (w,h,mi,bx,by,gx,gy) = (%d,%d,%d,%d,%d,%d,%d)...\n",
+           width, height, maxIter, blockSize.x, blockSize.y, gridSize.x, gridSize.y);
+
     // Create event timers...
     cudaEvent_t start, stop;
     cudaAssert(cudaEventCreate(&start));
@@ -300,7 +302,7 @@ int main(int argc, char ** argv) {
 
     // Allocate memory on device...
     if (DEBUG) fprintf(stderr, "cudaMalloc...\n");
-    cudaAssert(cudaMalloc(&d_output, dataSize * sizeof(DTYPE)));
+    cudaAssert(cudaMalloc(&d_output, nBytes));
 
     double realRange = (RMAX - RMIN) / (double) (width - 1);
     double imagRange = (IMAX - IMIN) / (double) (height - 1);
@@ -308,7 +310,7 @@ int main(int argc, char ** argv) {
     // Invoke the kernel...
     if (DEBUG) {
         fprintf(stderr, "kernel: mand(d_output[%d], maxIter=%d, realRange=%lf, imagRange=%lf)...\n",
-                dataSize, maxIter, realRange, imagRange);
+                nPixels, maxIter, realRange, imagRange);
     }
 
     mand<<<gridSize, blockSize>>>(d_output, maxIter, width, height, realRange, imagRange);
@@ -317,7 +319,7 @@ int main(int argc, char ** argv) {
 
     // Copy data back to host...
     if (DEBUG) fprintf(stderr, "cudaMemcpy...\n");
-    cudaAssert(cudaMemcpy(output, d_output, dataSize * sizeof(DTYPE), cudaMemcpyDeviceToHost));
+    cudaAssert(cudaMemcpy(output, d_output, nBytes, cudaMemcpyDeviceToHost));
 
     // Free data on device...
     if (DEBUG) fprintf(stderr, "cudaFree...\n");

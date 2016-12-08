@@ -32,8 +32,8 @@ def main():
     exec = '/home/edavis/Work/Courses/530/cuda/trunk/mandcu'
     nIter = 10000
     nRuns = 5
-    inc = 32
-    xMin = 0
+    inc = 16
+    xMin = 16
     yMin = 0
     xMax = 1024
     yMax = xMax
@@ -67,7 +67,7 @@ def main():
     outFile = '%s/Mandelbrot.pgm' % path
     refFile = '%s/Mandelbrot-ref.pgm' % path
 
-    print('BlockX,BlockY,GridX,GridY,MaxIter,Time')
+    print('Width,Height,MaxIter,BlockX,BlockY,GridX,GridY,Time')
 
     if DEBUG:
         print("xMin = %d, yMin = %d, xMax = %d, yMax = %d" %  (xMin, yMin, xMax, yMax))
@@ -75,9 +75,6 @@ def main():
     blockX = xMin
     while blockX < xMax + 1:
         blockY = yMin
-        nThreads = blockX * blockY
-        if DEBUG:
-            print("blockX = %d, blockY = %d, nThreads = %d" % (blockX, blockY, nThreads))
         
         while blockY < yMax + 1:
             if blockX > 0:
@@ -92,30 +89,40 @@ def main():
 
             if blockX == 0 and blockY == 0:
                 nThreads = THREADS_PER_BLOCK + 1    # Error state...
+            else:
+                nThreads = blockX * blockY
+
+            if DEBUG:
+                print("blockX = %d, blockY = %d, nThreads = %d" % (blockX, blockY, nThreads))
 
             if nThreads <= THREADS_PER_BLOCK:
                 # Invoke CUDA C program
                 args = [exec, '%d' % nIter, '%d' % imgWidth, '%d' % imgHeight, '%d' % blockX, '%d' % blockY]
-
+                #print(' '.join(args))
                 isValid = True
 
                 mtime = 0.0
+                vals = ''
                 for i in range(nRuns):
                     output = run(args)
+                    lines = output.rstrip().split("\n")
 
                     # Diff output file with reference file on 1st iteration, only report times for runs with valid output...
                     if i == 0:
+                        items = lines[0].split()
+                        vals = items[-1].replace('(', '').replace(')...', '')
+
                         isValid = filecmp.cmp(outFile, refFile, False)
                         if not isValid:
+                            print("ERROR: Image is not valid for settings (%s)." % vals)
                             break
 
-                    lines = output.rstrip().split("\n")
-                    mtime += float(lines[-1].split()[-2])
+                    mtime += float(lines[1].split()[-2])
 
                 if isValid:
                     mtime /= float(nRuns)
                     if mtime  >= MIN_VALID_TIME:
-                        print('%d,%d,%d,%d,%d,%lf' % (blockX, blockY, gridX, gridY, nIter, mtime))
+                        print('%s,%lf' % (vals, mtime))
                         sys.stdout.flush()
 
             blockY += inc
