@@ -26,10 +26,10 @@
 #define   MAX_COLOR  UCHAR_MAX          /* 255 */
 #define   OUT_FILE   "Mandelbrot.pgm"
 #define   DEF_ITER   1000
-#define   DEBUG      0
+#define   DEBUG      0 
 
-//typedef int DTYPE;
-typedef unsigned char DTYPE;
+typedef int DTYPE;
+//typedef unsigned char DTYPE;
 
 /**
  * writeOutput

@@ -12,15 +12,18 @@ import traceback as tb
 import filecmp
 
 DEBUG = False
-MIN_VALID_TIME = 0.01
+MIN_VALID_TIME = 0.5
 THREADS_PER_BLOCK = 1024
 
 def run(args, stream=None):
     if DEBUG:
         print(' '.join(args))
 
-    data = sub.check_output(args, env=os.environ, stderr=sub.STDOUT)
-    output = data.decode()
+    try:
+        data = sub.check_output(args, env=os.environ, stderr=sub.STDOUT)
+        output = data.decode()
+    except CalledProcessError:
+        output = ''
 
     if stream is not None:
         stream.write(output)
@@ -77,16 +80,6 @@ def main():
         blockY = yMin
         
         while blockY < yMax + 1:
-            if blockX > 0:
-                gridX = imgWidth // blockX
-            else:
-                gridX = imgWidth
-
-            if blockY > 0:
-                gridY = imgHeight // blockY
-            else:
-                gridY = imgHeight
-
             if blockX == 0 and blockY == 0:
                 nThreads = THREADS_PER_BLOCK + 1    # Error state...
             else:
@@ -95,7 +88,7 @@ def main():
             if DEBUG:
                 print("blockX = %d, blockY = %d, nThreads = %d" % (blockX, blockY, nThreads))
 
-            if nThreads <= THREADS_PER_BLOCK:
+            if True: #nThreads <= THREADS_PER_BLOCK:
                 # Invoke CUDA C program
                 args = [exec, '%d' % nIter, '%d' % imgWidth, '%d' % imgHeight, '%d' % blockX, '%d' % blockY]
                 #print(' '.join(args))
@@ -105,19 +98,28 @@ def main():
                 vals = ''
                 for i in range(nRuns):
                     output = run(args)
-                    lines = output.rstrip().split("\n")
+                    isValid = len(output) > 0
 
-                    # Diff output file with reference file on 1st iteration, only report times for runs with valid output...
-                    if i == 0:
-                        items = lines[0].split()
-                        vals = items[-1].replace('(', '').replace(')...', '')
+                    if isValid:
+                        lines = output.rstrip().split("\n")
 
-                        isValid = filecmp.cmp(outFile, refFile, False)
-                        if not isValid:
-                            print("ERROR: Image is not valid for settings (%s)." % vals)
-                            break
+                        # Diff output file with reference file on 1st iteration, only report times for runs with valid output...
+                        if i == 0:
+                            items = lines[0].split()
+                            vals = items[-1].replace('(', '').replace(')...', '')
 
-                    mtime += float(lines[1].split()[-2])
+                            isValid = filecmp.cmp(outFile, refFile, False)
+                            if not isValid:
+                                print("ERROR: Image is not valid for settings (%s)." % vals)
+
+                        if isValid:
+                            rtime = float(lines[1].split()[-2])
+                            isValid = rtime >= MIN_VALID_TIME
+
+                    if not isValid:
+                        break
+
+                    mtime += rtime
 
                 if isValid:
                     mtime /= float(nRuns)
